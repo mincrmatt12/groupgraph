@@ -1,0 +1,5 @@
+bezier
+svgwrite
+scipy
+numpy
+svgpathtools

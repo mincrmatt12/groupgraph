@@ -1,0 +1,4 @@
+.idea/
+*.svg
+*.pyc
+*__pycache__*
