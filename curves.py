@@ -16,8 +16,8 @@ def find_group_for_nodes(nodes, node_sizes):
     nodes = nodes[:]
     if len(nodes) == 1:
         node_sizes = np.tile(node_sizes, 4)
-        nodes_ = [[nodes[0][0] - node_sizes[0]*4, nodes[0][1]], [nodes[0][0] + node_sizes[0]*4, nodes[0][1]],
-                  [nodes[0][0], nodes[0][1]] + node_sizes[0]*4, [nodes[0][0], nodes[0][1] - node_sizes[0]*4]]
+        nodes_ = [[nodes[0][0] - node_sizes[0]*1, nodes[0][1]], [nodes[0][0] + node_sizes[0]*1, nodes[0][1]],
+                  [nodes[0][0], nodes[0][1]] + node_sizes[0]*1, [nodes[0][0], nodes[0][1] - node_sizes[0]*1]]
         nodes = nodes_
 
     elif len(nodes) == 2:
@@ -28,9 +28,9 @@ def find_group_for_nodes(nodes, node_sizes):
             np.average(arr[:, 1])
         ])
         nodes_ = [nodes[0], nodes[1], [
-            center[0] + 25, center[1] + 25
+            center[0] + node_sizes[0], center[1] + node_sizes[0]
         ], [
-            center[0] - 25, center[1] - 25
+            center[0] - node_sizes[1], center[1] - node_sizes[1]
         ]]
         nodes = nodes_
 
@@ -97,12 +97,11 @@ def get_curve_bbox(c):
     return svgpathtools.parse_path(get_path_for_curve(c)).bbox()
 
 
-def point_inside_curve(c, p):
+def point_inside_curve(c, p, s=0):
     bbox = get_curve_bbox(c)
-    curve_ = bezier.Curve(np.asfortranarray([
-        [p[0], p[1]],
-        [p[0], bbox[3] + 10]
-    ]), degree=1)
+    center_x = (bbox[1] + bbox[0]) / 2
+    center_y = (bbox[3] + bbox[2]) / 2
+
     curves = []
     for i in range(0, len(c) - 1, 2):
         try:
@@ -118,27 +117,44 @@ def point_inside_curve(c, p):
                 c[0]
             ]), degree=2))
 
-    intersection_count = 0
-    for i in curves:
-        intersection_count += len(i.intersect(curve_))
+    ps = [
+        p,
+        p + np.array([0, s]),
+        p + np.array([0, -s]),
+        p + np.array([s, 0]),
+        p + np.array([-s, 0])
+    ]
 
-    return intersection_count % 2 == 1
+    for p in ps:
+        curve_ = bezier.Curve(np.asfortranarray([
+            [p[0], p[1]],
+            [p[0], bbox[3] + 10]
+        ]), degree=1)
+
+        intersection_count = 0
+        for i in curves:
+            intersection_count += len(i.intersect(curve_))
+
+        d1 = intersection_count % 2 == 1
+        if d1:
+            return True
+    return False
 
 
 import svgwrite
 
 
-def debug_save_as_svg(p, crves, positions):
-    dwg = svgwrite.Drawing(p, size=("1200px", "1800px"))
-    dwg.viewbox(width=1200, height=1800)
+def debug_save_as_svg(p, crves, positions, node_sizes):
+    dwg = svgwrite.Drawing(p, size=("1300px", "1300px"))
+    dwg.viewbox(width=1300, height=1300)
 
     for crv in crves:
         pth = dwg.path(d=get_path_for_curve(crv))
         pth.fill('none').stroke('orange', width=5)
         dwg.add(pth)
 
-    for i in positions:
-        c = dwg.circle(center=(i[0], i[1]), r=15)
+    for j, i in enumerate(positions):
+        c = dwg.circle(center=(i[0], i[1]), r=int(node_sizes[j]))
         c.fill('blue')
         dwg.add(c)
 
