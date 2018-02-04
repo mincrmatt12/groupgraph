@@ -1,3 +1,5 @@
+import svgpathtools
+
 import curves
 import fit
 import numpy as np
@@ -104,6 +106,19 @@ class Powermap:
         self.dwg.add(self.dwg.text(
             'multiple people for an arrow', insert=("82.5%", "1680px"), font_size="15px",
             text_anchor="middle", font_family="Open Sans"))
+
+        self.dwg.add(self.dwg.text(
+            'arrow thickness means importance', insert=("82.5%", "1640px"), font_size="15px",
+            text_anchor="middle", font_family="Open Sans"))
+
+        y = 1380
+        for i in self.legend:
+            self.dwg.add(self.dwg.text(
+                i, insert=("67%", f"{y}px"), font_size="20px", font_family="Open Sans"))
+            line = f"M 907.5 {y-6} L 1080 {y-6}"
+            legend.create_path(self.legend[i], line, self.dwg, True)
+            y += 30
+
 
     def create_connection_paths(self):
         for connection in self.connections:

@@ -27,7 +27,7 @@ def generate_legendspec(name, existing_legendspecs, offset=0):
     h = hash(name) + offset
     base_color = colors[h % len(colors)]
     content = [base_color, None, None]
-    if h % 4 == 0:
+    if h % 3 == 0:
         hashcolor = (colors + ["white"])[h % (len(colors)+1)]
         dash = dashes[h % len(dashes)]
         content[1] = True
