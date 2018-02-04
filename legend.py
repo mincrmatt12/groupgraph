@@ -43,13 +43,13 @@ def generate_legendspec(name, existing_legendspecs, offset=0):
     return content
 
 
-def create_path(legendspec, curve, dwg: svgwrite.Drawing):
+def create_path(legendspec, curve, dwg: svgwrite.Drawing, s):
     path_base = dwg.path(d=curve)
-    path_base.fill("none").stroke(legendspec[0], width=6 if legendspec[0] != "gray" else 3)
+    path_base.fill("none").stroke(legendspec[0], width=6 if not s else 3)
     paths = [path_base]
     if legendspec[1]:
         path_dashes = dwg.path(d=curve)
-        path_dashes.fill("none").stroke(legendspec[2][1], width=6)
+        path_dashes.fill("none").stroke(legendspec[2][1], width=6 if not s else 3)
         path_dashes.dasharray(legendspec[2][0])
         paths.append(path_dashes)
     for i in paths:
