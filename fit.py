@@ -2,21 +2,30 @@ import curves as ruv
 import numpy as np
 import copy
 
-PAGE_SIZE_X = 1100
-PAGE_SIZE_Y = 1100
+PAGE_SIZE_X = 1000
+PAGE_SIZE_Y = 1200
 EDGE_X = 400
-EDGE_Y = 200
+EDGE_Y = 300
 
-CRAMP = 100
-CCRAMP = 150
-AIR = 280
-EQUIL = 45
+print(f"[GroupFit] Page parameters are: PAGE_SIZE {PAGE_SIZE_X}x{PAGE_SIZE_Y}, edges at {EDGE_X},{EDGE_Y}")
+
+CRAMP = 130
+CCRAMP = 200
+AIR = 350
+
+print(f"[GroupFit] Grouping parameters are: CRAMP={CRAMP} CCRAMP={CCRAMP} AIR={AIR}")
 
 
-def are_nodes_invalid(node_positions, minx, miny, maxx, maxy):
+def are_nodes_invalid(node_positions, minx, miny, maxx, maxy, node_sizes):
     for node in node_positions:
         if minx < node[0] < maxx and miny < node[1] < maxy: continue
         return True
+    for j, node in enumerate(node_positions):
+        for j2, node2 in enumerate(node_positions):
+            if j == j2:
+                continue
+            if ruv.distance(node, node2) < max(node_sizes[j], node_sizes[j2])+5:
+                return True
     return False
 
 
@@ -38,9 +47,9 @@ def fit_to_groups(groups, nodes, node_sizes):
     
     aci = are_curves_invalid(curve_shapes, node_positions, groups, node_sizes)
 
-    while aci[0] or are_nodes_invalid(node_positions, 0, 0, PAGE_SIZE_X, PAGE_SIZE_Y) or aci[3]:
-        if are_nodes_invalid(node_positions, 0, 0, PAGE_SIZE_X, PAGE_SIZE_Y):
-            print("################ rerandom #####################")
+    while aci[0] or are_nodes_invalid(node_positions, 0, 0, PAGE_SIZE_X, PAGE_SIZE_Y, node_sizes) or aci[3]:
+        if are_nodes_invalid(node_positions, 0, 0, PAGE_SIZE_X, PAGE_SIZE_Y, node_sizes):
+            #print("################ rerandom #####################")
             lgi = 0
             iter = 0
             node_positions[:, 0] = np.random.uniform(EDGE_X, PAGE_SIZE_X, size=(len(nodes),))
@@ -51,19 +60,16 @@ def fit_to_groups(groups, nodes, node_sizes):
         if not aci[0] and are_curves_invalid(
                 curve_shapes, node_positions, groups, node_sizes)[3]:
             niceity += 1
-            print ("################################## niceity ###############################")
+            #print ("################################## niceity ###############################")
             last_good = [copy.deepcopy(curve_shapes), copy.deepcopy(node_positions)]
             lgi = iter
             if niceity > max_nice:
-                #ruv.debug_save_as_svg(f"{iter}d.svg", curve_shapes, node_positions)
                 break
         else:
             if niceity > 0 and max_nice > 3:
                 max_nice -= 1
             niceity = 0
             if last_good is not None and iter - lgi > 40:
-                ruv.debug_save_as_svg(f"{iter}d.svg", curve_shapes, node_positions, node_sizes)
-
                 return last_good
 
         for nodenum in range(len(nodes)):
@@ -86,7 +92,7 @@ def fit_to_groups(groups, nodes, node_sizes):
                 if ruv.point_inside_curve(curve_shapes[num], node_positions[nodenum]):
                     bbox = ruv.get_curve_bbox(curve_shapes[num])
                     s = (max(bbox[1] - bbox[0], bbox[3] - bbox[2]) / 2) * np.sqrt(2)
-                    s += node_sizes[nodenum] + 1
+                    s += node_sizes[nodenum] + 5
                     s /= 15
 
                     center = np.array([
@@ -103,20 +109,21 @@ def fit_to_groups(groups, nodes, node_sizes):
 
 
         curve_shapes = generate_curves(node_positions, node_sizes, groups)
-        #ruv.debug_save_as_svg(f"{iter}d.svg", curve_shapes, node_positions)
         iter += 1
-        if iter > 500:
-            print("################ reset #####################")
-            ruv.debug_save_as_svg(f"{iter}d.svg", curve_shapes, node_positions, node_sizes)
-
-            return curve_shapes, node_positions
-
-        print("############ iter {}".format(iter))
-        if iter % 2 == 0:
-            print("#" + aci[4])
+        if iter > 200:
+            #print("################ rerandom #####################")
+            lgi = 0
+            iter = 0
+            node_positions[:, 0] = np.random.uniform(EDGE_X, PAGE_SIZE_X, size=(len(nodes),))
+            node_positions[:, 1] = np.random.uniform(EDGE_Y, PAGE_SIZE_Y, size=(len(nodes),))
+            curve_shapes = generate_curves(node_positions, node_sizes, groups)
+            aci = are_curves_invalid(curve_shapes, node_positions, groups, node_sizes)
+            continue
+        #print("############ iter {}".format(iter))
+        print("[GroupFit] [Iter {}] ".format(iter) + aci[4])
         aci = are_curves_invalid(curve_shapes, node_positions, groups, node_sizes)
 
-    ruv.debug_save_as_svg(f"{iter}d.svg", curve_shapes, node_positions, node_sizes)
+    #ruv.debug_save_as_svg(f"{iter}d.svg", curve_shapes, node_positions, node_sizes)
 
     return curve_shapes, node_positions
 
@@ -153,11 +160,6 @@ def are_curves_invalid(curves, node_positions, groups, node_sizes):
                                                   f" {reasons[4]} in wrong clouds "
 
 
-def check_equil(pos, center):
-    a = pos - center
-    b = abs(a[0] - a[1])
-    return b > EQUIL
-
 
 def center_of(group, node_positions):
     arr = node_positions[group]
@@ -193,5 +195,5 @@ if __name__ == "__main__":
         for i in groups:
             print(nodes[i], i)
     groups = np.array([[0, 1, 4, 5, 6, 7], [2], [3], [0, 1], [4, 5, 7]])
-    node_sizes = np.random.randint(10, 20, len(nodes))
+    node_sizes = np.random.randint(30, 80, len(nodes))
     print(fit_to_groups(groups, nodes, node_sizes))

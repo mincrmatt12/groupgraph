@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.spatial import ConvexHull
 import svgpathtools
-import bezier
+import svgwrite
 
 
 def cp_for(start, middle, end):
@@ -13,43 +13,22 @@ def cp_for(start, middle, end):
 
 
 def find_group_for_nodes(nodes, node_sizes):
-    nodes = nodes[:]
-    if len(nodes) == 1:
-        node_sizes = np.tile(node_sizes, 4)
-        nodes_ = [[nodes[0][0] - node_sizes[0]*1, nodes[0][1]], [nodes[0][0] + node_sizes[0]*1, nodes[0][1]],
-                  [nodes[0][0], nodes[0][1]] + node_sizes[0]*1, [nodes[0][0], nodes[0][1] - node_sizes[0]*1]]
-        nodes = nodes_
-
-    elif len(nodes) == 2:
-        arr = np.array(nodes)
-        node_sizes = np.tile(node_sizes, 2)
-        center = np.array([
-            np.average(arr[:, 0]),
-            np.average(arr[:, 1])
-        ])
-        nodes_ = [nodes[0], nodes[1], [
-            center[0] + node_sizes[0], center[1] + node_sizes[0]
-        ], [
-            center[0] - node_sizes[1], center[1] - node_sizes[1]
-        ]]
-        nodes = nodes_
-
-    arr = np.array(nodes)
-    center = np.array([
-        np.average(arr[:, 0]),
-        np.average(arr[:, 1])
-    ])
-
-    new_points = [explode(x, center, node_sizes[i] * 4) for i, x in enumerate(nodes)]
+    new_points = []
+    for j, i in enumerate(nodes):
+        new_points.append(i)
+        new_points.append(i + np.array([node_sizes[j] + 20, 0]))
+        new_points.append(i + np.array([-node_sizes[j] - 20, 0]))
+        new_points.append(i + np.array([0, node_sizes[j] + 20]))
+        new_points.append(i + np.array([0, -node_sizes[j] - 20]))
 
     valid_edges = ConvexHull(new_points)
     new_points = np.array(new_points)[valid_edges.vertices]
+    new_points = np.append(new_points, [new_points[0]], axis=0)
 
     for i in range(1, len(new_points) - 1, 2):
         new_points[i] = cp_for(new_points[i - 1], new_points[i], new_points[i + 1])
 
     new_points = [x for x in new_points]
-    new_points.append(new_points[0])
 
     return new_points
 
@@ -98,73 +77,51 @@ def get_curve_bbox(c):
 
 
 def point_inside_curve(c, p, s=0):
-    bbox = get_curve_bbox(c)
-    center_x = (bbox[1] + bbox[0]) / 2
-    center_y = (bbox[3] + bbox[2]) / 2
+    crv = np.array(c)
+    center = np.array([
+        np.average(crv[:, 0]),
+        np.average(crv[:, 1])
+    ])
+    new_crv = []
+    for pt in crv:
+        if s == 0:
+            new_crv.append(pt)
+        else:
+            new_crv.append(explode(pt, center, (s / 2)))
+    new_crv = np.array(new_crv)
+    pth = svgpathtools.parse_path(get_path_for_curve(new_crv))
+    bbox = pth.bbox()
 
-    curves = []
-    for i in range(0, len(c) - 1, 2):
-        try:
-            curves.append(bezier.Curve(np.asfortranarray([
-                c[i],
-                c[i + 1],
-                c[i + 2]
-            ]), degree=2))
-        except IndexError:
-            curves.append(bezier.Curve(np.asfortranarray([
-                c[i],
-                c[i + 1],
-                c[0]
-            ]), degree=2))
+    end = p[0] + 1j * bbox[3]
+    p = p[0] + 1j * p[1]
+    curve = svgpathtools.Path(svgpathtools.Line(p, end))
 
-    ps = [
-        p,
-        p + np.array([0, s]),
-        p + np.array([0, -s]),
-        p + np.array([s, 0]),
-        p + np.array([-s, 0])
-    ]
+    intersection_count = len(curve.intersect(pth))
 
-    for p in ps:
-        curve_ = bezier.Curve(np.asfortranarray([
-            [p[0], p[1]],
-            [p[0], bbox[3] + 10]
-        ]), degree=1)
-
-        intersection_count = 0
-        for i in curves:
-            intersection_count += len(i.intersect(curve_))
-
-        d1 = intersection_count % 2 == 1
-        if d1:
-            return True
-    return False
-
-
-import svgwrite
+    return intersection_count % 2 == 1
 
 
 def debug_save_as_svg(p, crves, positions, node_sizes):
-    dwg = svgwrite.Drawing(p, size=("1300px", "1300px"))
-    dwg.viewbox(width=1300, height=1300)
-
-    for crv in crves:
-        pth = dwg.path(d=get_path_for_curve(crv))
-        pth.fill('none').stroke('orange', width=5)
-        dwg.add(pth)
+    dwg = svgwrite.Drawing(p, size=("11in", "17in"))
+    dwg.viewbox(width=1100, height=1700)
 
     for j, i in enumerate(positions):
         c = dwg.circle(center=(i[0], i[1]), r=int(node_sizes[j]))
         c.fill('blue')
         dwg.add(c)
 
+    for crv in crves:
+        pth = dwg.path(d=get_path_for_curve(crv))
+        pth.fill('none').stroke('orange', width=5)
+        dwg.add(pth)
+
     dwg.save(True)
 
 
 if __name__ == "__main__":
-    pts = (np.random.rand(30, 2) + 1) * np.array([800, 300])
-    sizes = (np.random.rand(30) + 1) * 15
-    crv = find_group_for_nodes(pts, sizes)
+    pts = (np.random.rand(50, 2) + 1) * np.array([800, 300])
+    sizes = (np.random.rand(50) + 1) * 15
+    crv = find_group_for_nodes(pts[:30], sizes[:30])
     dwg = svgwrite.Drawing("a.svg", size=("1800px", "900px"))
     dwg.viewbox(width=1800, height=900)
 
